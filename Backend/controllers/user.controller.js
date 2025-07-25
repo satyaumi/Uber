@@ -1,7 +1,7 @@
-const userModel =require('../model/user.model');
+const userModel =require('../models/user.model.js');
 const userService =require('../services/user.service');
 const {validationResult} =require('express-validator')
-
+const blacklistTokenModel =require('../models/blacklistToken.model.js');
 
 module.exports.registerUser =async(req,res,next)=>{
    const errors =validationResult(req);
@@ -15,7 +15,7 @@ try{
 
 
    const{ fullname, email, password}=req.body;
-   
+
     if (!fullname || !fullname.firstname || !fullname.lastname) {
       return res.status(400).json({ message: "fullname with firstname and lastname is required" });
     }
@@ -36,22 +36,50 @@ try{
 }
 }
 
+
 module.exports.loginUser =async(req,res,next)=>{
     const errors =validationResult(req);
     if(!errors.isEmpty()){
         return res.status(400).json({errors:errors.array()});
     }
-    const {email,password} =req.body;
-    const user =await userModel.findOne({email}).select('+password');
-    if(!user){
+    try{
+      const {email,password} =req.body;
+      const user =await userModel.findOne({email}).select('+password');
+      if(!user){
         return res.status(401).json({message:"invalid email or password"});
-    }
-    const isMatch =await user.comparePassword(password);
+      }
+      const isMatch =await user.comparePassword(password);
 
-    if(!isMatch){
+      if(!isMatch){
         return res.status(401).json({message:"invalid email or password"});
 
+      }
+      const token =user.generateAuthToken();
+      res.cookie('token',token);
+      res.status(200).json({token,user});
+}catch(err){
+        next(err);
     }
-    const token =user.generateAuthToken();
-    res.status(200).json({token,user});
 }
+
+module.exports.getUserProfile =async(req,res,next)=>{
+    res.status(200).json(req.user);
+}
+
+module.exports.logoutUser = async(req,res,next) =>{
+    try{
+        res.clearCookie('token');
+        const token =req.cookies.token || req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(400).json({ message: "token is required" });
+        }
+        await blacklistTokenModel.create({ token });
+        res.status(200).json({message:"logout successful"});
+    } catch(err) {
+        next(err);
+    }
+}
+
+// module.exports=router;
+
+
