@@ -14,7 +14,7 @@ module.exports.createUser =async ({
              lastname,
          },
          email,
-         password:hashedPassword,
-    })
+         password,
+    });
     return user
-}
+};
